@@ -106,11 +106,11 @@ if __name__ == "__main__":
         shutil.rmtree(cache_dir)
 
         # Remove unnecessary file in dest_dir
-        os.remove(os.path.join(dest_dir, "cameras.txt"))
-        os.remove(os.path.join(dest_dir, "images.txt"))
-        os.remove(os.path.join(dest_dir, "points3D.txt"))
-        os.remove(os.path.join(dest_dir, "cameras.bin"))
-        os.remove(os.path.join(dest_dir, "images.bin"))
-        os.remove(os.path.join(dest_dir, "points3D.bin"))
+        # os.remove(os.path.join(dest_dir, "cameras.txt"))
+        # os.remove(os.path.join(dest_dir, "images.txt"))
+        # os.remove(os.path.join(dest_dir, "points3D.txt"))
+        # os.remove(os.path.join(dest_dir, "cameras.bin"))
+        # os.remove(os.path.join(dest_dir, "images.bin"))
+        # os.remove(os.path.join(dest_dir, "points3D.bin"))
 
         
