@@ -12,7 +12,7 @@
 import torch
 from torch import nn
 import numpy as np
-from utils.graphics_utils import getWorld2View2, getProjectionMatrix
+from utils.graphics_utils import getWorld2View2, getProjectionMatrix, fov2focal
 
 class Camera(nn.Module):
     def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
@@ -48,6 +48,11 @@ class Camera(nn.Module):
         self.zfar = 100.0
         self.znear = 0.01
 
+        self.focal_x = fov2focal(self.FoVx, self.image_width)
+        self.K = torch.from_numpy(np.array([[self.focal_x, 0, self.image_width / 2],
+                           [0, self.focal_x, self.image_height / 2],
+                           [0, 0, 1]])).cuda()
+        
         self.trans = trans
         self.scale = scale
 

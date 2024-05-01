@@ -12,6 +12,7 @@
 import torch
 import numpy as np
 from utils.general_utils import inverse_sigmoid, get_expon_lr_func, build_rotation
+from utils.transmvs_utils import *
 from torch import nn
 import os
 from utils.system_utils import mkdir_p
@@ -20,6 +21,27 @@ from utils.sh_utils import RGB2SH
 from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
+# from scene.transmvsnet import TransMVSNet
+from tqdm import tqdm
+
+from plyfile import PlyData, PlyElement
+def storePly(path, xyz, rgb):
+    # Define the dtype for the structured array
+    dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
+            ('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4'),
+            ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')]
+    
+    normals = np.zeros_like(xyz)
+
+    elements = np.empty(xyz.shape[0], dtype=dtype)
+    attributes = np.concatenate((xyz, normals, rgb), axis=1)
+    elements[:] = list(map(tuple, attributes))
+
+    # Create the PlyData object and write to file
+    vertex_element = PlyElement.describe(elements, 'vertex')
+    ply_data = PlyData([vertex_element])
+    ply_data.write(path)
+
 
 class GaussianModel:
 
@@ -57,6 +79,23 @@ class GaussianModel:
         self.percent_dense = 0
         self.spatial_lr_scale = 0
         self.setup_functions()
+    #     self.initialize_mvsnet()
+    
+    # # TODO: Parameterize this with argparse
+    # def initialize_mvsnet(self):
+    #     self.mvsnet = TransMVSNet(refine=False,
+    #                               ndepths=[48, 32, 8], 
+    #                               depth_interals_ratio=[4, 1, 0.5],
+    #                               share_cr=False,
+    #                               cr_base_chs=[8, 8, 8],
+    #                               grad_method="detach")
+
+    #     state_dict = torch.load("checkpoints/TransMVSNet/model_bld.ckpt", map_location=torch.device("cpu"))
+    #     self.mvsnet.load_state_dict(state_dict['model'], strict=True)
+    #     self.mvsnet.to("cuda")
+    #     self.mvsnet.eval()
+
+
 
     def capture(self):
         return (

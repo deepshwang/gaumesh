@@ -9,6 +9,27 @@ import numpy as np
 import math
 import cv2
 from tqdm import tqdm
+import torchvision
+
+def write_cam(file, cam):
+    f = open(file, "w")
+    f.write('extrinsic\n')
+    for i in range(0, 4):
+        for j in range(0, 4):
+            f.write(str(cam[0][i][j]) + ' ')
+        f.write('\n')
+    f.write('\n')
+
+    f.write('intrinsic\n')
+    for i in range(0, 3):
+        for j in range(0, 3):
+            f.write(str(cam[1][i][j]) + ' ')
+        f.write('\n')
+
+    f.write('\n' + str(cam[1][3][0]) + ' ' + str(cam[1][3][1]) + ' ' + str(cam[1][3][2]) + ' ' + str(cam[1][3][3]) + '\n')
+
+    f.close()
+
 
 def save_pfm(filename, image, scale=1):
     file = open(filename, "wb")
@@ -97,7 +118,6 @@ def focal2fov(focal, pixels):
 def build_pairs(data_path):
     pair_file = "{}/mvs_pairs.txt".format(data_path)
     # read the pair file
-    all_src_views = []
     with open(os.path.join(pair_file)) as f:
         lines = f.readlines()
         lines = [line.rstrip().split()[0::2] for line in lines]
@@ -112,7 +132,7 @@ def build_depths(data_path):
     lines = [[float(x) for x in line] for line in lines]
     return lines
 
-def getprojmat(train_camera):
+def getprojmat(train_camera, scale=4.0):
     proj_mat = np.zeros(shape=(2, 4, 4), dtype=np.float32)
     proj_mat[0, :3, :3] = train_camera.R.T
     proj_mat[0, :3, 3] = train_camera.T
@@ -123,19 +143,17 @@ def getprojmat(train_camera):
     proj_mat[1, 0, 0] = f
     proj_mat[1, 1, 1] = f
     proj_mat[1, 2, 2] = 1.0
-    proj_mat[1, :2, :] /= 4.0 # https://github.com/megvii-research/TransMVSNet/blob/master/datasets/bld_train.py#L61
+    proj_mat[1, :2, :] /= scale # https://github.com/megvii-research/TransMVSNet/blob/master/datasets/bld_train.py#L61
     return proj_mat
 
 if __name__ == '__main__':
     parser = ArgumentParser(description="Training script parameters")
     # add output_dir to parser
-    outdir = "viz_tests/test"
-    os.makedirs(outdir, exist_ok=True)
     lp = ModelParams(parser)
 
     data_dir = "/home/nas4_dataset/3D/NeRF/NeRF_Data/nerf_synthetic"
-    # scenes = ["lego", "drums", "hotdog", "chair", "materials", "mic", "ship"]
-    scenes = ["lego"]
+    scenes = ["lego", "drums", "hotdog", "chair", "materials", "mic", "ship"]
+    # scenes = ["lego"]
 
     # # Load TransMVS model
     model = TransMVSNet(refine=False,
@@ -153,6 +171,9 @@ if __name__ == '__main__':
     for scene in scenes:
         n_views = 5 
         ndepths = 192
+        outdir = os.path.join(data_dir, scene, "mvs_outputs")
+        os.makedirs(outdir, exist_ok=True)
+
         ## Read Data
         lp.resolution = 1
         scene_info = readNerfSyntheticInfo(os.path.join(data_dir, scene), white_background=False, eval=True, point_random_init=False)
@@ -162,7 +183,9 @@ if __name__ == '__main__':
         pair_metas = build_pairs(os.path.join(data_dir, scene)) 
         depth_metas = build_depths(os.path.join(data_dir, scene)) # depth_min, depth_interval, depth_num, depth_max 
 
-        for i, train_camera in tqdm(enumerate(train_cameras), total=len(train_cameras)):
+        pbar = tqdm(enumerate(train_cameras), total=len(train_cameras))
+        pbar.set_description(f"[ Processing {scene}... ]")
+        for i, train_camera in pbar:
             pairs = pair_metas[i][:n_views-1]
             images = [train_camera.original_image] + [train_cameras[p].original_image for p in pairs]
             images = torch.stack(images)[None, ...]
@@ -208,16 +231,21 @@ if __name__ == '__main__':
                 os.makedirs(cam_filename.rsplit('/', 1)[0], exist_ok=True)
                 os.makedirs(img_filename.rsplit('/', 1)[0], exist_ok=True)
                 os.makedirs(ply_filename.rsplit('/', 1)[0], exist_ok=True)
+                
                 #save depth maps
-                # save_pfm(depth_filename, depth_est)
+                save_pfm(depth_filename, depth_est)
                 depth_color = visualize_depth(depth_est)
                 cv2.imwrite(os.path.join(outdir, filename.format('depth_est', '.png')), depth_color)
+                
                 #save confidence maps
-                # save_pfm(confidence_filename, conf_final)
+                save_pfm(confidence_filename, conf_final)
                 cv2.imwrite(os.path.join(outdir, filename.format('confidence', '_3.png')), visualize_depth(photometric_confidence))
-                # cv2.imwrite(os.path.join(outdir, filename.format('confidence', '_1.png')),visualize_depth(conf_1))
-                # cv2.imwrite(os.path.join(outdir, filename.format('confidence', '_2.png')),visualize_depth(conf_2))
+                cv2.imwrite(os.path.join(outdir, filename.format('confidence', '_1.png')),visualize_depth(conf_1))
+                cv2.imwrite(os.path.join(outdir, filename.format('confidence', '_2.png')),visualize_depth(conf_2))
                 cv2.imwrite(os.path.join(outdir, filename.format('confidence', '_final.png')),visualize_depth(conf_final))
 
-                
-                import torchvision; torchvision.utils.save_image(images[0], img_filename)
+                # save camera
+                write_cam(cam_filename, getprojmat(train_camera, scale=1.0))
+
+                # save image
+                torchvision.utils.save_image(images[0][0], img_filename)
